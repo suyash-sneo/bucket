@@ -153,6 +153,49 @@ func TestQuickAddEnterCreatesTaskAndEntersEdit(t *testing.T) {
 	}
 }
 
+func TestInitialListLoadFetchesDetailsForSelectedTask(t *testing.T) {
+	now := time.Now().UTC()
+	svc := &fakeService{
+		listItems: []domain.TaskListItem{
+			{ID: 5, Title: "first", Status: domain.StatusCreated, UpdatedAt: now},
+		},
+		getTask: domain.Task{
+			ID:        5,
+			Title:     "first",
+			Status:    domain.StatusCreated,
+			CreatedAt: now,
+			UpdatedAt: now,
+			Meta:      map[string]any{},
+		},
+	}
+	m := NewModel(ModelOptions{
+		Service:   svc,
+		Theme:     uitheme.Dark(),
+		ListType:  domain.ListInbox,
+		DraftsDir: t.TempDir(),
+		Now:       time.Now,
+	})
+
+	initCmd := m.Init()
+	if initCmd == nil {
+		t.Fatalf("expected init list load command")
+	}
+	_, detailsCmd := m.Update(initCmd())
+	if detailsCmd == nil {
+		t.Fatalf("expected details load command after initial list load")
+	}
+	_, _ = m.Update(detailsCmd())
+	if m.selectedTaskID != 5 {
+		t.Fatalf("expected selected task ID 5, got %d", m.selectedTaskID)
+	}
+	if m.details.ID != 5 {
+		t.Fatalf("expected details for selected task, got ID %d", m.details.ID)
+	}
+	if m.detailsLoadedAt.IsZero() {
+		t.Fatalf("expected detailsLoadedAt to be set")
+	}
+}
+
 func TestSpaceCyclesStatusInListMode(t *testing.T) {
 	svc := &fakeService{}
 	m := newTestModel(t, svc)

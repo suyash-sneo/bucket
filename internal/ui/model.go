@@ -358,11 +358,16 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		model.clampSelection()
 		if task, ok := model.selectedTask(); ok {
-			if model.selectedTaskID != task.ID {
-				model.selectedTaskID = task.ID
+			model.selectedTaskID = task.ID
+			if model.details.ID != task.ID || model.detailsLoadedAt.IsZero() {
 				return model, model.loadDetailsCmd(task.ID)
 			}
+			return model, nil
 		}
+		model.details = domain.Task{}
+		model.subtasks = nil
+		model.detailsLoadedAt = time.Time{}
+		model.viewport.SetContent("")
 		return model, nil
 	case detailsLoadedMsg:
 		if typed.requestID != model.pending.detailsID {
