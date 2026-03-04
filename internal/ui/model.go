@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -90,6 +91,7 @@ type ModelOptions struct {
 	Editor         string
 	ConflictDrafts []string
 	Now            func() time.Time
+	Logger         *slog.Logger
 }
 
 type Model struct {
@@ -145,6 +147,8 @@ type Model struct {
 
 	draftsDir string
 	editor    string
+	logger    *slog.Logger
+	debugKeys bool
 
 	windowWidth  int
 	windowHeight int
@@ -187,6 +191,7 @@ func NewModel(options ModelOptions) *Model {
 	if options.ListType == "" {
 		options.ListType = domain.ListInbox
 	}
+	debugKeys := os.Getenv("BUCKET_DEBUG_KEYS") != ""
 	quickAdd := textinput.New()
 	quickAdd.Placeholder = "Task title"
 	quickAdd.CharLimit = 256
@@ -258,6 +263,8 @@ func NewModel(options ModelOptions) *Model {
 		draftsDir:    options.DraftsDir,
 		editor:       options.Editor,
 		now:          options.Now,
+		logger:       options.Logger,
+		debugKeys:    debugKeys,
 	}
 	if len(options.ConflictDrafts) > 0 {
 		model.mode = ModeModalError
@@ -500,8 +507,10 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		model.dirty = true
 		return model, nil
 	case tea.KeyMsg:
+		model.logKey("received", typed)
 		if model.mode == ModeModalError {
-			if key.Matches(typed, model.keys.Cancel) {
+			// Allow dismiss with Esc (default cancel) or Enter so users are never stuck
+			if key.Matches(typed, model.keys.Cancel) || typed.Type == tea.KeyEnter {
 				if model.errModal.Fatal {
 					return model, tea.Quit
 				}
@@ -539,6 +548,45 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return model, nil
+}
+
+func (model *Model) logKey(stage string, message tea.KeyMsg) {
+	if !model.debugKeys || model.logger == nil {
+		return
+	}
+	model.logger.Info("key_debug",
+		"stage", stage,
+		"mode", modeString(model.mode),
+		"focused_field", model.focusedFieldName(),
+		"key_string", message.String(),
+		"key_type", int(message.Type),
+		"key_runes", fmt.Sprintf("%+q", message.Runes),
+		"alt", message.Alt,
+		"paste", message.Paste,
+	)
+}
+
+func modeString(mode Mode) string {
+	switch mode {
+	case ModeList:
+		return "list"
+	case ModeFilterInput:
+		return "filter"
+	case ModeQuickAdd:
+		return "quickadd"
+	case ModeEdit:
+		return "edit"
+	case ModeNotesEdit:
+		return "notes"
+	case ModeSubtasks:
+		return "subtasks"
+	case ModeModalError:
+		return "modal_error"
+	case ModeConfirmDelete:
+		return "confirm_delete"
+	default:
+		return "unknown"
+	}
 }
 
 func (model *Model) shouldHandleGlobalListSwitch() bool {

@@ -113,6 +113,7 @@ func Run(version string) error {
 		Editor:         cfg.Editor,
 		ConflictDrafts: conflicts,
 		Now:            time.Now,
+		Logger:         logger,
 	})
 
 	program := tea.NewProgram(model, tea.WithAltScreen())
