@@ -16,13 +16,13 @@
 ### macOS (curl, latest release)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/master/scripts/install.sh | sh
 ```
 
 ### macOS (curl, specific version)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/main/scripts/install.sh | BUCKET_VERSION=v0.0.1 sh
+curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/master/scripts/install.sh | BUCKET_VERSION=v0.0.1 sh
 ```
 
 ## Uninstall
@@ -30,13 +30,13 @@ curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/main/scripts/ins
 ### macOS (remove binary + data)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/main/scripts/uninstall.sh | sh
+curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/master/scripts/uninstall.sh | sh
 ```
 
 ### macOS (remove binary, keep data)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/main/scripts/uninstall.sh | BUCKET_KEEP_DATA=1 sh
+curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/master/scripts/uninstall.sh | BUCKET_KEEP_DATA=1 sh
 ```
 
 ## Data & Config

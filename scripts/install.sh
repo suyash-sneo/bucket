@@ -27,11 +27,17 @@ case "$ARCH" in
 esac
 
 if [ -z "$VERSION" ]; then
-  VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | awk -F'"' '/tag_name/ {print $4; exit}')"
+  # /releases/latest excludes prereleases and returns 404 when only prereleases exist.
+  VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | awk -F'"' '/tag_name/ {print $4; exit}' || true)"
 fi
 
 if [ -z "$VERSION" ]; then
-  echo "Failed to detect release version from GitHub." >&2
+  VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases?per_page=1" | awk -F'"' '/tag_name/ {print $4; exit}')"
+fi
+
+if [ -z "$VERSION" ]; then
+  echo "Failed to detect a release version from GitHub for ${REPO}." >&2
+  echo "Set BUCKET_VERSION explicitly, e.g. BUCKET_VERSION=v0.0.1." >&2
   exit 1
 fi
 
