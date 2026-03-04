@@ -122,6 +122,7 @@ func keySpace() tea.KeyMsg { return tea.KeyMsg{Type: tea.KeySpace, Runes: []rune
 func keyTab() tea.KeyMsg   { return tea.KeyMsg{Type: tea.KeyTab} }
 func keyCtrlQ() tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyCtrlQ} }
 func keyCtrlN() tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyCtrlN} }
+func keyCtrlH() tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyCtrlH} }
 
 func TestKeyAEntersQuickAddMode(t *testing.T) {
 	m := newTestModel(t, &fakeService{})
@@ -219,9 +220,50 @@ func TestEnterAndEscEditTransitions(t *testing.T) {
 	if m.mode != ModeEdit {
 		t.Fatalf("expected edit mode, got %v", m.mode)
 	}
-	_, _ = m.Update(keyEsc())
+	_, _ = m.Update(keyCtrlH())
 	if m.mode != ModeList {
 		t.Fatalf("expected list mode, got %v", m.mode)
+	}
+}
+
+func TestHTypesInNotesEditor(t *testing.T) {
+	m := newTestModel(t, &fakeService{})
+	m.mode = ModeNotesEdit
+	m.notesEditor.SetValue("")
+	m.notesEditor.Focus()
+
+	_, _ = m.Update(keyRunes('h'))
+	if m.mode != ModeNotesEdit {
+		t.Fatalf("expected to stay in notes edit")
+	}
+	if m.notesEditor.Value() != "h" {
+		t.Fatalf("expected h typed, got %q", m.notesEditor.Value())
+	}
+}
+
+func TestSelectorsAdjustPriorityEstimateDue(t *testing.T) {
+	m := newTestModel(t, &fakeService{})
+	m.mode = ModeEdit
+
+	m.form.focused = FieldPriority
+	m.focusField()
+	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	if got := m.form.priority.Value(); got != "1" {
+		t.Fatalf("expected priority to become 1, got %q", got)
+	}
+
+	m.form.focused = FieldEstimate
+	m.focusField()
+	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	if got := m.form.estimate.Value(); got != "30" {
+		t.Fatalf("expected estimate to become 30, got %q", got)
+	}
+
+	m.form.focused = FieldDue
+	m.focusField()
+	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	if m.form.due.Value() == "" {
+		t.Fatalf("expected due date to be set by selector")
 	}
 }
 

@@ -757,6 +757,12 @@ func (model *Model) updateEditMode(message tea.KeyMsg) tea.Cmd {
 		model.blurFields()
 		return nil
 	}
+	if model.handleFieldSelectors(message) {
+		return nil
+	}
+	if model.handleFieldSelectors(message) {
+		return nil
+	}
 	if key.Matches(message, model.keys.CycleEdit) {
 		model.editDraft.Status = domain.CycleStatus(model.editDraft.Status)
 		model.dirty = true
@@ -1796,6 +1802,114 @@ func (model *Model) subtaskByID(id int64) *domain.Subtask {
 		}
 	}
 	return nil
+}
+
+// handleFieldSelectors provides quick selectors for certain fields when focused.
+// Returns true if it handled the key (preventing further processing).
+func (model *Model) handleFieldSelectors(message tea.KeyMsg) bool {
+	switch model.form.focused {
+	case FieldPriority:
+		if message.Type == tea.KeyUp || message.Type == tea.KeyDown {
+			model.cyclePriority(message.Type == tea.KeyUp)
+			return true
+		}
+	case FieldEstimate:
+		if message.Type == tea.KeyUp || message.Type == tea.KeyDown {
+			model.bumpEstimate(message.Type == tea.KeyUp)
+			return true
+		}
+	case FieldDue:
+		if message.Type == tea.KeyUp || message.Type == tea.KeyDown {
+			model.shiftDueDate(message.Type == tea.KeyUp)
+			return true
+		}
+	}
+	return false
+}
+
+func (model *Model) cyclePriority(increase bool) {
+	current := strings.TrimSpace(model.form.priority.Value())
+	val, err := strconv.Atoi(current)
+	if err != nil || val < 1 || val > 4 {
+		if increase {
+			val = 1
+		} else {
+			val = 4
+		}
+	} else {
+		if increase {
+			val++
+			if val > 4 {
+				val = 0
+			}
+		} else {
+			val--
+			if val < 1 {
+				val = 0
+			}
+		}
+	}
+	if val == 0 {
+		model.form.priority.SetValue("")
+		model.editDraft.Priority = nil
+	} else {
+		model.form.priority.SetValue(strconv.Itoa(val))
+		model.editDraft.Priority = &val
+	}
+	model.dirty = true
+}
+
+func (model *Model) bumpEstimate(increase bool) {
+	current := strings.TrimSpace(model.form.estimate.Value())
+	minutesPtr, _ := domain.ParseEstimatedMinutes(current)
+	var minutes int
+	if minutesPtr == nil {
+		if increase {
+			minutes = 30
+		} else {
+			return
+		}
+	} else {
+		minutes = *minutesPtr
+		if increase {
+			minutes += 15
+		} else {
+			minutes -= 15
+		}
+		if minutes < 1 {
+			minutes = 0
+		}
+		if minutes > 100000 {
+			minutes = 100000
+		}
+	}
+	if minutes == 0 {
+		model.form.estimate.SetValue("")
+		model.editDraft.EstimatedMinutes = nil
+	} else {
+		model.form.estimate.SetValue(strconv.Itoa(minutes))
+		model.editDraft.EstimatedMinutes = &minutes
+	}
+	model.dirty = true
+}
+
+func (model *Model) shiftDueDate(increase bool) {
+	current := strings.TrimSpace(model.form.due.Value())
+	parsed, _ := domain.ParseDueInput(current, time.Local)
+	var base time.Time
+	if parsed == nil {
+		base = time.Now().In(time.Local)
+		base = time.Date(base.Year(), base.Month(), base.Day(), 0, 0, 0, 0, time.Local)
+	} else {
+		base = parsed.In(time.Local)
+	}
+	if increase {
+		base = base.AddDate(0, 0, 1)
+	} else {
+		base = base.AddDate(0, 0, -1)
+	}
+	model.form.due.SetValue(base.Format(domain.DueDateLayout))
+	model.dirty = true
 }
 
 func maxInt(a, b int) int {
