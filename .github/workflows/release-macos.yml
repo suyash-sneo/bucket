@@ -1,0 +1,84 @@
+name: release-macos
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Release tag (e.g. v1.2.3)"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark as prerelease"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-arm64
+            runner: macos-14
+            arch: arm64
+          - name: macos-amd64
+            runner: macos-13
+            arch: amd64
+    runs-on: ${{ matrix.runner }}
+    env:
+      VERSION: ${{ github.event.inputs.release_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build (${{ matrix.arch }})
+        env:
+          GOOS: darwin
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 1
+        run: |
+          mkdir -p dist
+          go build -ldflags "-s -w" -o dist/bucket-${VERSION}-${GOARCH} ./cmd/bucket
+
+      - name: Package (${{ matrix.arch }})
+        run: |
+          cd dist
+          tar -czf bucket-${VERSION}-${{ matrix.arch }}.tar.gz bucket-${VERSION}-${{ matrix.arch }}
+
+      - name: Upload artifact (${{ matrix.arch }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: bucket-${{ matrix.arch }}
+          path: dist/bucket-${VERSION}-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bucket-*
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.release_version }}
+          name: buckets ${{ github.event.inputs.release_version }}
+          prerelease: ${{ github.event.inputs.prerelease }}
+          files: dist/bucket-*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
