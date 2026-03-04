@@ -3,6 +3,7 @@ package components
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	"bucket/internal/domain"
 	"bucket/internal/ui/theme"
@@ -14,10 +15,10 @@ func RenderHeader(palette theme.Theme, width int, listType string, count int, fi
 	if width <= 0 {
 		return ""
 	}
-	left := fmt.Sprintf("buckets  •  %s  •  %d tasks  •  %s", strings.Title(listType), count, filterState)
+	left := fmt.Sprintf("buckets  •  %s  •  %d tasks  •  %s", strings.Title(listType), count, sanitizeHeaderText(filterState))
 	right := ""
 	if selected != nil {
-		right = fmt.Sprintf("%s %s", domain.StatusGlyph(selected.Status), selected.Title)
+		right = fmt.Sprintf("%s %s", domain.StatusGlyph(selected.Status), sanitizeHeaderText(selected.Title))
 		right = runewidth.Truncate(right, max(0, width/2), "…")
 	}
 	if dirty {
@@ -43,6 +44,16 @@ func RenderHeader(palette theme.Theme, width int, listType string, count int, fi
 	}
 	style := lipgloss.NewStyle().Foreground(palette.HeaderFG).Bold(true)
 	return style.Render(runewidth.Truncate(line, width, "…"))
+}
+
+func sanitizeHeaderText(input string) string {
+	clean := strings.Map(func(character rune) rune {
+		if character == '\n' || character == '\r' || character == '\t' || unicode.IsControl(character) {
+			return ' '
+		}
+		return character
+	}, input)
+	return strings.TrimSpace(clean)
 }
 
 func max(a, b int) int {

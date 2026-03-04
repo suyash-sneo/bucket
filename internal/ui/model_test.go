@@ -123,6 +123,7 @@ func keyTab() tea.KeyMsg   { return tea.KeyMsg{Type: tea.KeyTab} }
 func keyCtrlQ() tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyCtrlQ} }
 func keyCtrlN() tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyCtrlN} }
 func keyCtrlH() tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyCtrlH} }
+func keyCtrlK() tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyCtrlK} }
 
 func TestKeyAEntersQuickAddMode(t *testing.T) {
 	m := newTestModel(t, &fakeService{})
@@ -264,6 +265,27 @@ func TestSelectorsAdjustPriorityEstimateDue(t *testing.T) {
 	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
 	if m.form.due.Value() == "" {
 		t.Fatalf("expected due date to be set by selector")
+	}
+}
+
+func TestCtrlKClearsURLFieldInEditMode(t *testing.T) {
+	m := newTestModel(t, &fakeService{})
+	m.mode = ModeEdit
+	m.form.focused = FieldURL
+	m.focusField()
+	m.form.url.SetValue("https://example.com/some/really/long/path?q=abc")
+	m.editDraft.URL = m.form.url.Value()
+	m.dirty = false
+
+	_, _ = m.Update(keyCtrlK())
+	if m.form.url.Value() != "" {
+		t.Fatalf("expected URL input cleared, got %q", m.form.url.Value())
+	}
+	if m.editDraft.URL != "" {
+		t.Fatalf("expected draft URL cleared, got %q", m.editDraft.URL)
+	}
+	if !m.dirty {
+		t.Fatalf("expected dirty true after clearing URL")
 	}
 }
 
@@ -466,5 +488,21 @@ func TestEmptyWideViewShowsDemarcatedPanes(t *testing.T) {
 	}
 	if strings.Contains(view, "URL: (none)") {
 		t.Fatalf("did not expect empty task fields when no task is selected")
+	}
+}
+
+func TestHeaderRendersWhenSelectedTitleHasControlChars(t *testing.T) {
+	m := newTestModel(t, &fakeService{})
+	m.windowWidth = 120
+	m.windowHeight = 40
+	m.mode = ModeList
+	m.tasks = []domain.TaskListItem{
+		{ID: 1, Title: "Supply comms metadata API details to SMP\r\n", Status: domain.StatusCreated, UpdatedAt: time.Now().UTC()},
+	}
+	m.selectedIndex = 0
+
+	view := m.View()
+	if !strings.Contains(view, "buckets") {
+		t.Fatalf("expected header to render with selected first item")
 	}
 }

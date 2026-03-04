@@ -64,6 +64,7 @@ curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/master/scripts/u
 - `Tab` / `Shift+Tab`: next/previous field
 - `ctrl+space` (or `ctrl+@`): cycle status
 - `ctrl+o`: open URL
+- `ctrl+k`: clear URL (when URL field is focused)
 - `ctrl+h`: back to list
 - Notes editor: `ctrl+e` opens `$EDITOR`
 

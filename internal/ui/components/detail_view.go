@@ -17,7 +17,7 @@ func RenderDetailView(palette theme.Theme, width, height int, task domain.Task, 
 	lines := []string{
 		lipgloss.NewStyle().Bold(true).Foreground(palette.Accent).Render(task.Title),
 		fmt.Sprintf("%s  %s", domain.StatusGlyph(task.Status), domain.StatusLabel(task.Status)),
-		fmt.Sprintf("URL: %s", valueOrNone(task.URL)),
+		fmt.Sprintf("URL: %s", lipgloss.NewStyle().Foreground(palette.Accent2).Render(CompactURL(task.URL, maxInt(8, width-8)))),
 		fmt.Sprintf("Due: %s", domain.FormatDueTime(task.DueAt, time.Local)),
 		fmt.Sprintf("Priority: %s", intPtrOrNone(task.Priority)),
 		fmt.Sprintf("Estimate: %s", minutesOrNone(task.EstimatedMinutes)),
@@ -44,13 +44,6 @@ func RenderDetailView(palette theme.Theme, width, height int, task domain.Task, 
 	return lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
 }
 
-func valueOrNone(input string) string {
-	if strings.TrimSpace(input) == "" {
-		return "(none)"
-	}
-	return input
-}
-
 func intPtrOrNone(input *int) string {
 	if input == nil {
 		return "(none)"
@@ -70,4 +63,11 @@ func progressOrNone(input *int) string {
 		return "(none)"
 	}
 	return fmt.Sprintf("%d%%", *input)
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

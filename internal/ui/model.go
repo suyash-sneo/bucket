@@ -757,8 +757,11 @@ func (model *Model) updateEditMode(message tea.KeyMsg) tea.Cmd {
 		model.blurFields()
 		return nil
 	}
-	if model.handleFieldSelectors(message) {
-		return nil
+	if model.form.focused == FieldURL && model.matchesClearURL(message) {
+		model.form.url.SetValue("")
+		model.editDraft.URL = ""
+		model.dirty = true
+		return model.startSaveCmd()
 	}
 	if model.handleFieldSelectors(message) {
 		return nil
@@ -1121,10 +1124,11 @@ func (model *Model) renderRightPane(width, height int) string {
 }
 
 func (model *Model) renderEditPane(width, height int) string {
+	urlValue := model.renderURLFieldValue(width)
 	values := map[string]string{
 		"title":    model.form.title.Value(),
 		"status":   fmt.Sprintf("%s %s", domain.StatusGlyph(model.editDraft.Status), domain.StatusLabel(model.editDraft.Status)),
-		"url":      valueOrNoneString(model.form.url.Value()),
+		"url":      urlValue,
 		"due":      valueOrNoneString(model.form.due.Value()),
 		"priority": valueOrNoneString(model.form.priority.Value()),
 		"estimate": valueOrNoneString(model.form.estimate.Value()),
@@ -1211,7 +1215,7 @@ func (model *Model) renderEmptyDetails(width, height int) string {
 func (model *Model) helpText() string {
 	switch model.mode {
 	case ModeEdit:
-		return "tab/shift+tab fields • ctrl+t/u/s/d/p/e/r/b/n jump • ctrl+space cycle • ctrl+o open URL • esc back"
+		return "tab/shift+tab fields • ctrl+t/u/s/d/p/e/r/b/n jump • ctrl+space cycle • ctrl+o open URL • ctrl+k clear URL • esc back"
 	case ModeNotesEdit:
 		return "typing edits notes • ctrl+e external edit • ctrl+o open URL • esc back"
 	case ModeSubtasks:
@@ -1536,6 +1540,22 @@ func (model *Model) focusedFieldName() string {
 	default:
 		return "title"
 	}
+}
+
+func (model *Model) matchesClearURL(message tea.KeyMsg) bool {
+	if key.Matches(message, model.keys.ClearURL) || message.Type == tea.KeyCtrlK {
+		return true
+	}
+	return message.Type == tea.KeyRunes && len(message.Runes) == 1 && message.Runes[0] == 0x0b
+}
+
+func (model *Model) renderURLFieldValue(width int) string {
+	const clearHint = " (ctrl+k clear)"
+	available := width - len("URL: ") - len(clearHint)
+	if available < 10 {
+		available = 10
+	}
+	return components.CompactURL(model.form.url.Value(), available) + clearHint
 }
 
 func (model *Model) updateFocusedInput(message tea.KeyMsg) tea.Cmd {
