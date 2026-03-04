@@ -59,7 +59,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bucket-${{ matrix.arch }}
-          path: dist/bucket-${VERSION}-${{ matrix.arch }}.tar.gz
+          path: dist/bucket-${{ env.VERSION }}-${{ matrix.arch }}.tar.gz
           if-no-files-found: error
 
   release:

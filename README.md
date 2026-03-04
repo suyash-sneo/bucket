@@ -13,30 +13,30 @@
 
 ## Install
 
-### macOS / Linux
+### macOS (curl, latest release)
 
 ```sh
-./scripts/install.sh
+curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/main/scripts/install.sh | sh
 ```
 
-### Windows (PowerShell)
+### macOS (curl, specific version)
 
-```powershell
-.\scripts\install.ps1
+```sh
+curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/main/scripts/install.sh | BUCKET_VERSION=v0.0.1 sh
 ```
 
 ## Uninstall
 
-### macOS / Linux
+### macOS (remove binary + data)
 
 ```sh
-./scripts/uninstall.sh
+curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/main/scripts/uninstall.sh | sh
 ```
 
-### Windows (PowerShell)
+### macOS (remove binary, keep data)
 
-```powershell
-.\scripts\uninstall.ps1
+```sh
+curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/main/scripts/uninstall.sh | BUCKET_KEEP_DATA=1 sh
 ```
 
 ## Data & Config
@@ -51,7 +51,7 @@
 
 - `j` / `k` or `↓` / `↑`: move
 - `Enter` / `→` / `l`: edit selected task
-- `Esc` / `←` / `h`: exit edit mode
+- `Esc` / `←` / `ctrl+h`: exit edit mode
 - `a`: add task (title-only)
 - `Space`: cycle status
 - `o`: open URL
@@ -64,6 +64,7 @@
 - `Tab` / `Shift+Tab`: next/previous field
 - `ctrl+space` (or `ctrl+@`): cycle status
 - `ctrl+o`: open URL
+- `ctrl+h`: back to list
 - Notes editor: `ctrl+e` opens `$EDITOR`
 
 ## Build from source
