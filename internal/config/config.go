@@ -16,14 +16,12 @@ const (
 
 const defaultConfigYAML = `database_path: "~/.config/bucket/bucket.db"
 theme: "auto" # auto|dark|light
-editor: ""    # if empty, use $EDITOR then vim
 log_max_mb: 10
 `
 
 type Config struct {
 	DatabasePath string `yaml:"database_path"`
 	Theme        string `yaml:"theme"`
-	Editor       string `yaml:"editor"`
 	LogMaxMB     int    `yaml:"log_max_mb"`
 }
 
@@ -31,7 +29,6 @@ func Default() Config {
 	return Config{
 		DatabasePath: "~/.config/bucket/bucket.db",
 		Theme:        defaultTheme,
-		Editor:       "",
 		LogMaxMB:     10,
 	}
 }

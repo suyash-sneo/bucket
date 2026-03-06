@@ -38,7 +38,6 @@ type KeyMap struct {
 	FocusNotes    key.Binding
 	CycleEdit     key.Binding
 	OpenURLEdit   key.Binding
-	OpenEditor    key.Binding
 	ClearURL      key.Binding
 	SubtaskDelete key.Binding
 }
@@ -80,7 +79,6 @@ func DefaultKeyMap() KeyMap {
 		FocusNotes:    key.NewBinding(key.WithKeys("ctrl+n"), key.WithHelp("ctrl+n", "notes")),
 		CycleEdit:     key.NewBinding(key.WithKeys("ctrl+space", "ctrl+@"), key.WithHelp("ctrl+space", "cycle")),
 		OpenURLEdit:   key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "open url")),
-		OpenEditor:    key.NewBinding(key.WithKeys("ctrl+e"), key.WithHelp("ctrl+e", "external edit")),
 		ClearURL:      key.NewBinding(key.WithKeys("ctrl+k"), key.WithHelp("ctrl+k", "clear url")),
 		SubtaskDelete: key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "delete")),
 	}

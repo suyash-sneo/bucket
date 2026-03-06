@@ -88,7 +88,6 @@ type ModelOptions struct {
 	Theme          uitheme.Theme
 	ListType       string
 	DraftsDir      string
-	Editor         string
 	ConflictDrafts []string
 	Now            func() time.Time
 	Logger         *slog.Logger
@@ -146,7 +145,6 @@ type Model struct {
 	markdown *components.MarkdownRenderer
 
 	draftsDir string
-	editor    string
 	logger    *slog.Logger
 	debugKeys bool
 
@@ -270,7 +268,6 @@ func NewModel(options ModelOptions) *Model {
 		theme:        options.Theme,
 		markdown:     components.NewMarkdownRenderer(),
 		draftsDir:    options.DraftsDir,
-		editor:       options.Editor,
 		now:          options.Now,
 		logger:       options.Logger,
 		debugKeys:    debugKeys,
@@ -347,11 +344,6 @@ type toastClearMsg struct {
 
 type urlOpenResultMsg struct {
 	err error
-}
-
-type notesExternalEditMsg struct {
-	notes string
-	err   error
 }
 
 func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
@@ -514,14 +506,6 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		if typed.err != nil {
 			return model, model.setToast(typed.err.Error())
 		}
-		return model, nil
-	case notesExternalEditMsg:
-		if typed.err != nil {
-			return model, model.setToast("External editor failed")
-		}
-		model.notesEditor.SetValue(typed.notes)
-		model.editDraft.Notes = typed.notes
-		model.dirty = true
 		return model, nil
 	case tea.KeyMsg:
 		model.logKey("received", typed)
@@ -911,9 +895,6 @@ func (model *Model) updateNotesMode(message tea.KeyMsg) tea.Cmd {
 		model.focusField()
 		return model.autosaveTickCmd()
 	}
-	if key.Matches(message, model.keys.OpenEditor) {
-		return model.openExternalEditorCmd()
-	}
 	if key.Matches(message, model.keys.OpenURLEdit) {
 		return model.openCurrentTaskURLCmd()
 	}
@@ -1246,7 +1227,7 @@ func (model *Model) helpText() string {
 	case ModeEdit:
 		return "tab/shift+tab fields • ctrl+t/u/s/d/p/e/r/b/n jump • ctrl+space cycle • ctrl+o open URL • ctrl+k clear URL • esc back"
 	case ModeNotesEdit:
-		return "typing edits notes • ctrl+e external edit • ctrl+o open URL • esc back"
+		return "typing edits notes • ctrl+o open URL • esc back"
 	case ModeSubtasks:
 		return "j/k move • a add • enter edit • space cycle • x delete • esc back"
 	case ModeQuickAdd:
@@ -1780,18 +1761,6 @@ func (model *Model) openCurrentTaskURLCmd() tea.Cmd {
 	return OpenURLCmd(normalized)
 }
 
-func (model *Model) openExternalEditorCmd() tea.Cmd {
-	current := model.notesEditor.Value()
-	editor := strings.TrimSpace(model.editor)
-	if editor == "" {
-		editor = strings.TrimSpace(os.Getenv("EDITOR"))
-	}
-	if editor == "" {
-		editor = "vim"
-	}
-	return OpenEditorForNotesCmd(editor, current)
-}
-
 func ExitAltScreenThen(cmd tea.Cmd) tea.Cmd {
 	return cmd
 }
@@ -1811,41 +1780,6 @@ func OpenURLCmd(url string) tea.Cmd {
 			return urlOpenResultMsg{err: fmt.Errorf("open URL failed: %w", err)}
 		}
 		return urlOpenResultMsg{}
-	})
-}
-
-func OpenEditorForNotesCmd(editor string, currentNotes string) tea.Cmd {
-	return ExitAltScreenThen(func() tea.Msg {
-		temporaryFile, err := os.CreateTemp("", "bucket-notes-*.md")
-		if err != nil {
-			return notesExternalEditMsg{err: err}
-		}
-		path := temporaryFile.Name()
-		defer os.Remove(path)
-		if _, err := temporaryFile.WriteString(currentNotes); err != nil {
-			_ = temporaryFile.Close()
-			return notesExternalEditMsg{err: err}
-		}
-		if err := temporaryFile.Close(); err != nil {
-			return notesExternalEditMsg{err: err}
-		}
-
-		parts := strings.Fields(editor)
-		if len(parts) == 0 {
-			parts = []string{"vim"}
-		}
-		command := exec.Command(parts[0], append(parts[1:], path)...)
-		command.Stdin = os.Stdin
-		command.Stdout = os.Stdout
-		command.Stderr = os.Stderr
-		if err := command.Run(); err != nil {
-			return notesExternalEditMsg{err: err}
-		}
-		payload, err := os.ReadFile(path)
-		if err != nil {
-			return notesExternalEditMsg{err: err}
-		}
-		return notesExternalEditMsg{notes: string(payload)}
 	})
 }
 

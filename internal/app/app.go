@@ -110,7 +110,6 @@ func Run(version string) error {
 		Theme:          uitheme.Resolve(cfg.Theme),
 		ListType:       "inbox",
 		DraftsDir:      draftsDir,
-		Editor:         cfg.Editor,
 		ConflictDrafts: conflicts,
 		Now:            time.Now,
 		Logger:         logger,
