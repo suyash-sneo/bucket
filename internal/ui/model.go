@@ -196,38 +196,47 @@ func NewModel(options ModelOptions) *Model {
 	quickAdd.Placeholder = "Task title"
 	quickAdd.CharLimit = 256
 	quickAdd.Prompt = ""
+	applyCursorStyle(&quickAdd, options.Theme)
 
 	filterInput := textinput.New()
 	filterInput.Placeholder = "title fuzzy filter"
 	filterInput.Prompt = ""
+	applyCursorStyle(&filterInput, options.Theme)
 
 	titleInput := textinput.New()
 	titleInput.CharLimit = 256
 	titleInput.Prompt = ""
+	applyCursorStyle(&titleInput, options.Theme)
 
 	urlInput := textinput.New()
 	urlInput.CharLimit = 2048
 	urlInput.Prompt = ""
+	applyCursorStyle(&urlInput, options.Theme)
 
 	dueInput := textinput.New()
 	dueInput.Placeholder = "YYYY-MM-DD or YYYY-MM-DD HH:MM"
 	dueInput.Prompt = ""
+	applyCursorStyle(&dueInput, options.Theme)
 
 	priorityInput := textinput.New()
 	priorityInput.Placeholder = "1..4"
 	priorityInput.Prompt = ""
+	applyCursorStyle(&priorityInput, options.Theme)
 
 	estimateInput := textinput.New()
 	estimateInput.Placeholder = "90 or 1h30m"
 	estimateInput.Prompt = ""
+	applyCursorStyle(&estimateInput, options.Theme)
 
 	progressInput := textinput.New()
 	progressInput.Placeholder = "0..100"
 	progressInput.Prompt = ""
+	applyCursorStyle(&progressInput, options.Theme)
 
 	subtaskInput := textinput.New()
 	subtaskInput.Prompt = ""
 	subtaskInput.CharLimit = 256
+	applyCursorStyle(&subtaskInput, options.Theme)
 
 	notes := textarea.New()
 	notes.SetHeight(10)
@@ -275,6 +284,13 @@ func NewModel(options ModelOptions) *Model {
 		}
 	}
 	return model
+}
+
+func applyCursorStyle(input *textinput.Model, palette uitheme.Theme) {
+	input.Cursor.Style = lipgloss.NewStyle().
+		Foreground(palette.BG).
+		Background(palette.Accent).
+		Bold(true)
 }
 
 func (model *Model) Init() tea.Cmd {
@@ -751,6 +767,17 @@ func (model *Model) updateQuickAddMode(message tea.KeyMsg) tea.Cmd {
 
 func (model *Model) updateEditMode(message tea.KeyMsg) tea.Cmd {
 	if key.Matches(message, model.keys.ExitEdit) {
+		// When editing inline text inputs, left arrow should move the caret
+		// instead of exiting edit mode.
+		if message.Type == tea.KeyLeft && model.isTextInputFieldFocused() {
+			before := model.formValuesHash()
+			cmd := model.updateFocusedInput(message)
+			after := model.formValuesHash()
+			if before != after {
+				model.dirty = true
+			}
+			return cmd
+		}
 		_, _ = model.writeDraftNow()
 		_ = model.flushDirty(300 * time.Millisecond)
 		model.mode = ModeList
@@ -1126,13 +1153,13 @@ func (model *Model) renderRightPane(width, height int) string {
 func (model *Model) renderEditPane(width, height int) string {
 	urlValue := model.renderURLFieldValue(width)
 	values := map[string]string{
-		"title":    model.form.title.Value(),
+		"title":    model.renderInputFieldValue(FieldTitle, model.form.title, false),
 		"status":   fmt.Sprintf("%s %s", domain.StatusGlyph(model.editDraft.Status), domain.StatusLabel(model.editDraft.Status)),
 		"url":      urlValue,
-		"due":      valueOrNoneString(model.form.due.Value()),
-		"priority": valueOrNoneString(model.form.priority.Value()),
-		"estimate": valueOrNoneString(model.form.estimate.Value()),
-		"progress": valueOrNoneString(model.form.progress.Value()),
+		"due":      model.renderInputFieldValue(FieldDue, model.form.due, true),
+		"priority": model.renderInputFieldValue(FieldPriority, model.form.priority, true),
+		"estimate": model.renderInputFieldValue(FieldEstimate, model.form.estimate, true),
+		"progress": model.renderInputFieldValue(FieldProgress, model.form.progress, true),
 	}
 	return components.RenderEditorForm(model.theme, width, height, model.focusedFieldName(), values, len(model.subtasks))
 }
@@ -1542,6 +1569,15 @@ func (model *Model) focusedFieldName() string {
 	}
 }
 
+func (model *Model) isTextInputFieldFocused() bool {
+	switch model.form.focused {
+	case FieldTitle, FieldURL, FieldDue, FieldPriority, FieldEstimate, FieldProgress:
+		return true
+	default:
+		return false
+	}
+}
+
 func (model *Model) matchesClearURL(message tea.KeyMsg) bool {
 	if key.Matches(message, model.keys.ClearURL) || message.Type == tea.KeyCtrlK {
 		return true
@@ -1551,11 +1587,24 @@ func (model *Model) matchesClearURL(message tea.KeyMsg) bool {
 
 func (model *Model) renderURLFieldValue(width int) string {
 	const clearHint = " (ctrl+k clear)"
+	if model.form.focused == FieldURL {
+		return model.form.url.View() + clearHint
+	}
 	available := width - len("URL: ") - len(clearHint)
 	if available < 10 {
 		available = 10
 	}
 	return components.CompactURL(model.form.url.Value(), available) + clearHint
+}
+
+func (model *Model) renderInputFieldValue(field FieldFocus, input textinput.Model, showNone bool) string {
+	if model.form.focused == field {
+		return input.View()
+	}
+	if showNone {
+		return valueOrNoneString(input.Value())
+	}
+	return input.Value()
 }
 
 func (model *Model) updateFocusedInput(message tea.KeyMsg) tea.Cmd {

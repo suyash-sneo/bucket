@@ -377,6 +377,9 @@ func TestListQueries(t *testing.T) {
 	})
 	assertNotContainsTitle(t, inbox, "archived-today")
 	assertNotContainsTitle(t, inbox, "completed-old-not-due")
+	if len(inbox) == 0 || inbox[0].Title != "created-today-completed" {
+		t.Fatalf("expected inbox sorted by created_at desc, got first=%q", firstTitle(inbox))
+	}
 
 	upcoming, err := taskRepo.ListTasks(context.Background(), ListQuery{
 		ListType:         domain.ListUpcoming,
@@ -406,6 +409,17 @@ func TestListQueries(t *testing.T) {
 	if len(archived) != 1 || archived[0].Status != domain.StatusArchived {
 		t.Fatalf("unexpected archived results: %+v", archived)
 	}
+
+	all, err := taskRepo.ListTasks(context.Background(), ListQuery{
+		ListType:        domain.ListAll,
+		IncludeArchived: true,
+	})
+	if err != nil {
+		t.Fatalf("list all: %v", err)
+	}
+	if len(all) == 0 || all[0].Title != "created-today-completed" {
+		t.Fatalf("expected all sorted by created_at desc, got first=%q", firstTitle(all))
+	}
 }
 
 func assertContainsTitles(t *testing.T, items []domain.TaskListItem, want []string) {
@@ -428,6 +442,13 @@ func assertNotContainsTitle(t *testing.T, items []domain.TaskListItem, title str
 			t.Fatalf("did not expect title %q in list", title)
 		}
 	}
+}
+
+func firstTitle(items []domain.TaskListItem) string {
+	if len(items) == 0 {
+		return ""
+	}
+	return items[0].Title
 }
 
 func TestBusyTimeoutReturnsBoundedError(t *testing.T) {

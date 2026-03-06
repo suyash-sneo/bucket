@@ -36,22 +36,22 @@ func BuildListSQL(query ListQuery) (string, []any, error) {
 	case domain.ListInbox:
 		where = "status != 'archived' AND ( (created_at >= ? AND created_at < ?) OR (due_at >= ? AND due_at < ?) OR (status NOT IN ('closed','completed','archived')) )"
 		args = append(args, query.StartTodayUTC, query.StartTomorrowUTC, query.StartTodayUTC, query.StartTomorrowUTC)
-		orderBy = "CASE WHEN due_at IS NULL THEN 1 ELSE 0 END, due_at ASC, COALESCE(priority,0) DESC, updated_at DESC"
+		orderBy = "created_at DESC"
 	case domain.ListUpcoming:
 		where = "status != 'archived' AND due_at >= ?"
 		args = append(args, query.StartTomorrowUTC)
-		orderBy = "due_at ASC, COALESCE(priority,0) DESC, updated_at DESC"
+		orderBy = "created_at DESC"
 	case domain.ListAll:
 		if !query.IncludeArchived {
 			where = "status != 'archived'"
 		}
-		orderBy = "updated_at DESC"
+		orderBy = "created_at DESC"
 	case domain.ListClosed:
 		where = "status IN ('closed','completed')"
-		orderBy = "updated_at DESC"
+		orderBy = "created_at DESC"
 	case domain.ListArchived:
 		where = "status = 'archived'"
-		orderBy = "updated_at DESC"
+		orderBy = "created_at DESC"
 	default:
 		return "", nil, fmt.Errorf("unsupported list type %q", query.ListType)
 	}

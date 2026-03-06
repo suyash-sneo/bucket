@@ -118,6 +118,7 @@ func keyRunes(r rune) tea.KeyMsg {
 
 func keyEnter() tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyEnter} }
 func keyEsc() tea.KeyMsg   { return tea.KeyMsg{Type: tea.KeyEsc} }
+func keyLeft() tea.KeyMsg  { return tea.KeyMsg{Type: tea.KeyLeft} }
 func keySpace() tea.KeyMsg { return tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}} }
 func keyTab() tea.KeyMsg   { return tea.KeyMsg{Type: tea.KeyTab} }
 func keyCtrlQ() tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyCtrlQ} }
@@ -286,6 +287,39 @@ func TestCtrlKClearsURLFieldInEditMode(t *testing.T) {
 	}
 	if !m.dirty {
 		t.Fatalf("expected dirty true after clearing URL")
+	}
+}
+
+func TestFocusedFieldRendersInputViewWithCursor(t *testing.T) {
+	m := newTestModel(t, &fakeService{})
+	m.mode = ModeEdit
+	m.form.focused = FieldTitle
+	m.focusField()
+	m.form.title.SetValue("alpha")
+
+	view := m.renderEditPane(100, 20)
+	if !strings.Contains(view, m.form.title.View()) {
+		t.Fatalf("expected focused title to render textinput view with cursor")
+	}
+}
+
+func TestLeftArrowMovesCaretInTextField(t *testing.T) {
+	m := newTestModel(t, &fakeService{})
+	m.mode = ModeEdit
+	m.form.focused = FieldTitle
+	m.focusField()
+	m.form.title.SetValue("alpha")
+	m.form.title.CursorEnd()
+	before := m.form.title.Position()
+
+	_, _ = m.Update(keyLeft())
+	after := m.form.title.Position()
+
+	if m.mode != ModeEdit {
+		t.Fatalf("expected to stay in edit mode, got %v", m.mode)
+	}
+	if after >= before {
+		t.Fatalf("expected left arrow to move caret left, before=%d after=%d", before, after)
 	}
 }
 
@@ -504,5 +538,25 @@ func TestHeaderRendersWhenSelectedTitleHasControlChars(t *testing.T) {
 	view := m.View()
 	if !strings.Contains(view, "buckets") {
 		t.Fatalf("expected header to render with selected first item")
+	}
+}
+
+func TestHeaderRendersWhenSelectedTaskHasLargeURL(t *testing.T) {
+	m := newTestModel(t, &fakeService{})
+	m.windowWidth = 120
+	m.windowHeight = 40
+	m.mode = ModeEdit
+	m.tasks = []domain.TaskListItem{
+		{ID: 1, Title: "Supply comms metadata API details to SMP", Status: domain.StatusCreated, UpdatedAt: time.Now().UTC()},
+	}
+	m.selectedIndex = 0
+	m.details.URL = "https://example.com/" + strings.Repeat("abcdef", 120) + "\r\n"
+	m.syncFormWithTask(m.details)
+	m.form.focused = FieldTitle
+	m.focusField()
+
+	view := m.View()
+	if !strings.Contains(view, "buckets") {
+		t.Fatalf("expected header to render for task with large URL")
 	}
 }
