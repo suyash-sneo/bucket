@@ -41,17 +41,49 @@ if [ -z "$VERSION" ]; then
   exit 1
 fi
 
-ASSET="bucket-${VERSION}-${ARCH}.tar.gz"
-URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET}"
-
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT INT TERM
 
 mkdir -p "$INSTALL_DIR"
-curl -fL "$URL" -o "${TMP_DIR}/${ASSET}"
-tar -xzf "${TMP_DIR}/${ASSET}" -C "$TMP_DIR"
+SELECTED_ASSET=""
+for CANDIDATE in \
+  "bucket-${VERSION}-darwin-${ARCH}.tar.gz" \
+  "bucket-${VERSION}-${ARCH}.tar.gz"
+do
+  URL="https://github.com/${REPO}/releases/download/${VERSION}/${CANDIDATE}"
+  if curl -fsSL "$URL" -o "${TMP_DIR}/${CANDIDATE}" 2>/dev/null; then
+    SELECTED_ASSET="$CANDIDATE"
+    break
+  fi
+done
 
-mv -f "${TMP_DIR}/bucket-${VERSION}-${ARCH}" "${INSTALL_DIR}/bucket"
+if [ -z "$SELECTED_ASSET" ]; then
+  echo "No matching macOS asset found for ${REPO} ${VERSION} (${ARCH})." >&2
+  echo "Expected one of:" >&2
+  echo "  bucket-${VERSION}-darwin-${ARCH}.tar.gz" >&2
+  echo "  bucket-${VERSION}-${ARCH}.tar.gz" >&2
+  exit 1
+fi
+
+tar -xzf "${TMP_DIR}/${SELECTED_ASSET}" -C "$TMP_DIR"
+
+SELECTED_BINARY=""
+for CANDIDATE_BIN in \
+  "bucket-${VERSION}-darwin-${ARCH}" \
+  "bucket-${VERSION}-${ARCH}"
+do
+  if [ -f "${TMP_DIR}/${CANDIDATE_BIN}" ]; then
+    SELECTED_BINARY="$CANDIDATE_BIN"
+    break
+  fi
+done
+
+if [ -z "$SELECTED_BINARY" ]; then
+  echo "Downloaded asset ${SELECTED_ASSET} but expected binary was not found." >&2
+  exit 1
+fi
+
+mv -f "${TMP_DIR}/${SELECTED_BINARY}" "${INSTALL_DIR}/bucket"
 chmod 0755 "${INSTALL_DIR}/bucket"
 
 echo "Installed ${REPO} ${VERSION} to ${INSTALL_DIR}/bucket"
