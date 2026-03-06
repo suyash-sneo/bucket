@@ -86,12 +86,11 @@ Bucket stores local state in `~/.config/bucket/`:
 - Full implementation spec: `Implementation.md`
 - Contributing guide: `CONTRIBUTING.md`
 
-## Build from Source
+## Contributing
 
-```sh
-go test ./...
-go build ./cmd/bucket
-```
+See `CONTRIBUTING.md` for contribution workflow.
+
+Help wanted: Linux and Windows build validation, runtime testing, and issue reports from real environments.
 
 ## License
 

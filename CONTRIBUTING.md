@@ -29,6 +29,8 @@ Open a GitHub Issue with:
 
 ## Submit a pull request
 
+If you need manual local build steps, see `docs/build-source.txt`.
+
 1. Fork the repository
 2. Create a feature branch
 3. Make focused changes

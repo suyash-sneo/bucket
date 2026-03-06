@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -131,7 +132,7 @@ func loadMigrations(source fs.FS) ([]Migration, int, error) {
 		if err != nil {
 			return nil, 0, err
 		}
-		payload, err := fs.ReadFile(source, filepath.Join("migrations", entry.Name()))
+		payload, err := fs.ReadFile(source, path.Join("migrations", entry.Name()))
 		if err != nil {
 			return nil, 0, fmt.Errorf("read migration file %s: %w", entry.Name(), err)
 		}

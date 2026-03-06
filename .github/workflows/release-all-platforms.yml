@@ -1,0 +1,114 @@
+name: release-all-platforms
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Release tag (e.g. v1.2.3)"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark as prerelease"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            ext: ""
+            archive: tar.gz
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            ext: ""
+            archive: tar.gz
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            ext: .exe
+            archive: zip
+    runs-on: ${{ matrix.os }}
+    env:
+      VERSION: ${{ github.event.inputs.release_version }}
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+      CGO_ENABLED: 0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build (non-windows)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p dist
+          go build -ldflags "-s -w" -o dist/bucket-${VERSION}-${GOOS}-${GOARCH} ./cmd/bucket
+
+      - name: Build (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          go build -ldflags "-s -w" -o "dist/bucket-${env:VERSION}-${env:GOOS}-${env:GOARCH}.exe" ./cmd/bucket
+
+      - name: Package (tar.gz)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          cd dist
+          tar -czf bucket-${VERSION}-${GOOS}-${GOARCH}.tar.gz bucket-${VERSION}-${GOOS}-${GOARCH}
+
+      - name: Package (zip)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "dist/bucket-${env:VERSION}-${env:GOOS}-${env:GOARCH}.exe" -DestinationPath "dist/bucket-${env:VERSION}-${env:GOOS}-${env:GOARCH}.zip" -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bucket-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/bucket-${{ env.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}.${{ matrix.archive }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bucket-*
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.release_version }}
+          name: buckets ${{ github.event.inputs.release_version }}
+          prerelease: ${{ github.event.inputs.prerelease }}
+          files: |
+            dist/bucket-${{ github.event.inputs.release_version }}-darwin-arm64.tar.gz
+            dist/bucket-${{ github.event.inputs.release_version }}-linux-amd64.tar.gz
+            dist/bucket-${{ github.event.inputs.release_version }}-windows-amd64.zip
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,77 @@
+name: release-linux
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Release tag (e.g. v1.2.3)"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark as prerelease"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ github.event.inputs.release_version }}
+      GOOS: linux
+      GOARCH: amd64
+      CGO_ENABLED: 0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build (linux-amd64)
+        run: |
+          mkdir -p dist
+          go build -ldflags "-s -w" -o dist/bucket-${VERSION}-linux-amd64 ./cmd/bucket
+
+      - name: Package (linux-amd64)
+        run: |
+          cd dist
+          tar -czf bucket-${VERSION}-linux-amd64.tar.gz bucket-${VERSION}-linux-amd64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bucket-linux-amd64
+          path: dist/bucket-${{ env.VERSION }}-linux-amd64.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bucket-linux-amd64
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.release_version }}
+          name: buckets ${{ github.event.inputs.release_version }}
+          prerelease: ${{ github.event.inputs.prerelease }}
+          files: dist/bucket-${{ github.event.inputs.release_version }}-linux-amd64.tar.gz
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
