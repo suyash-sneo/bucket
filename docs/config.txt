@@ -1,0 +1,102 @@
+Bucket Configuration Guide
+==========================
+
+Overview
+--------
+Bucket reads configuration from:
+
+  ~/.config/bucket/config.yml
+
+This file is loaded on startup. Any changes require restarting the app.
+
+
+How the file is created
+-----------------------
+On first run, bucket ensures `~/.config/bucket/` exists and auto-creates
+`config.yml` if missing.
+
+Default file content:
+
+database_path: "~/.config/bucket/bucket.db"
+theme: "auto" # auto|dark|light
+log_max_mb: 10
+
+
+How to locate config.yml
+------------------------
+macOS / Linux:
+- `~/.config/bucket/config.yml`
+- Example absolute path:
+  `/Users/<you>/.config/bucket/config.yml`
+
+Windows:
+- Bucket still builds path from your home directory using:
+  `~/.config/bucket/config.yml`
+- Typical expanded path:
+  `C:\Users\<you>\.config\bucket\config.yml`
+
+
+How to edit the file
+--------------------
+1) Open the file in any editor.
+2) Update values.
+3) Save.
+4) Restart bucket.
+
+Example:
+
+database_path: "/Users/alex/.config/bucket/work.db"
+theme: "dark"
+log_max_mb: 20
+
+
+Field reference
+---------------
+1) `database_path` (string)
+- What it controls:
+  Path to the SQLite database file.
+- Behavior:
+  - `~` is expanded to your home directory.
+  - If parent directory does not exist, bucket creates it.
+- When to change:
+  - Keep separate DBs for work/personal.
+  - Move DB location to another disk/folder.
+
+2) `theme` (string)
+- Allowed values:
+  - `auto`  -> bucket chooses dark/light from terminal background detection.
+  - `dark`  -> force dark palette.
+  - `light` -> force light palette.
+- Behavior:
+  Applied at startup; restart required after change.
+
+3) `log_max_mb` (integer, >= 1)
+- What it controls:
+  Maximum size of `~/.config/bucket/log.txt`.
+- Behavior:
+  - Bucket uses a capped writer.
+  - When log exceeds max size, older content is truncated and recent tail is kept.
+- When to change:
+  - Increase for deeper debugging history.
+  - Decrease to limit disk usage.
+
+
+Validation rules
+----------------
+Bucket validates config on startup:
+- `theme` must be one of: `auto`, `dark`, `light`
+- `log_max_mb` must be an integer >= 1
+- `database_path` must be non-empty
+
+If validation or YAML parsing fails:
+- Startup stops with an error.
+- Details are logged in `~/.config/bucket/log.txt`.
+
+
+Related files in the same directory
+-----------------------------------
+`~/.config/bucket/` also contains:
+- `log.txt`      : application log file
+- `bucket.db`    : default SQLite database (if default path is used)
+- `drafts/`      : crash/conflict-safe task drafts
+- `backups/`     : migration backups
