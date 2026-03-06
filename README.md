@@ -1,39 +1,42 @@
-# buckets
+# bucket
 
-`buckets` is a fast, keyboard-only TUI task manager for engineers who need to capture and track dozens of small requests during the day.
+`bucket` is a simple, fast, in-terminal task manager.
+
+It is built to reduce cognitive load during busy work: capture ad-hoc requests quickly into a bucket, keep moving, and return to focused execution. The app is keyboard-first and TUI-native by design.
 
 ## Features
 
-- SQLite persistence (local)
-- Two-pane TUI (list + details/edit)
-- Fast task creation (title-only)
-- Fuzzy filtering
-- URL open + notes editor with autosave
-- Clean UI (no box borders), dark/light theme support
+- Keyboard-first two-pane TUI (list + details/edit)
+- Very fast task capture (`a` for title-only quick add)
+- SQLite local persistence
+- Notes editor with autosave
+- URL open, filtering, and status cycling workflows
+- Draft and conflict recovery protections
+- Dark/light theme support
 
-## Install
+## Install (macOS)
 
-### macOS (curl, latest release)
+### Latest release
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/master/scripts/install.sh | sh
 ```
 
-### macOS (curl, specific version)
+### Specific version
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/master/scripts/install.sh | BUCKET_VERSION=v0.0.1 sh
 ```
 
-## Uninstall
+## Uninstall (macOS)
 
-### macOS (remove binary + data)
+### Remove binary + data
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/master/scripts/uninstall.sh | sh
 ```
 
-### macOS (remove binary, keep data)
+### Remove binary, keep data
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/master/scripts/uninstall.sh | BUCKET_KEEP_DATA=1 sh
@@ -41,35 +44,57 @@ curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/master/scripts/u
 
 ## Data & Config
 
-`buckets` stores everything in:
+Bucket stores local state in `~/.config/bucket/`:
 
 - Config: `~/.config/bucket/config.yml`
-- Logs: `~/.config/bucket/log.txt` (capped to 10MB)
-- Database: `~/.config/bucket/bucket.db` (default; configurable)
+- Logs: `~/.config/bucket/log.txt` (capped; default 10MB)
+- Database: `~/.config/bucket/bucket.db` (default)
+- Drafts: `~/.config/bucket/drafts/`
+- Migration backups: `~/.config/bucket/backups/`
 
-## Keybindings (Main)
+## How to Use
+
+### Core flow
+
+1. Run `bucket`
+2. Press `a`, type title, press `Enter`
+3. Press `Enter` (or `l`) to edit details
+4. Use `ctrl+t/u/s/d/p/e/r/b/n` to jump fields
+5. Press `Esc` or `ctrl+h` to go back to list
+
+### Main list keys
 
 - `j` / `k` or `↓` / `↑`: move
-- `Enter` / `→` / `l`: edit selected task
-- `Esc` / `←` / `ctrl+h`: exit edit mode
-- `a`: add task (title-only)
 - `Space`: cycle status
+- `/`: filter by title
 - `o`: open URL
-- `/`: filter
+- `I / U / A / C / @`: switch list view
 - `q` / `ctrl+q` / `ctrl+c`: quit
 
-## Keybindings (Edit)
+### Edit keys
 
-- `ctrl+t/u/s/d/p/e/r/b/n`: jump to a field / action
 - `Tab` / `Shift+Tab`: next/previous field
 - `ctrl+space` (or `ctrl+@`): cycle status
 - `ctrl+o`: open URL
 - `ctrl+k`: clear URL (when URL field is focused)
-- `ctrl+h`: back to list
 
-## Build from source
+## Documentation
+
+- Config guide: `docs/config.txt`
+- Conflict/draft design: `docs/conflict-management.txt`
+- Build from source guide: `docs/build-source.txt`
+- Full implementation spec: `Implementation.md`
+- Contributing guide: `CONTRIBUTING.md`
+
+## Build from Source
 
 ```sh
 go test ./...
 go build ./cmd/bucket
 ```
+
+## License
+
+This project is licensed under the MIT License. You are free to use, modify, and fork it.
+
+See `LICENSE`.

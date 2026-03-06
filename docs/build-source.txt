@@ -1,0 +1,80 @@
+Build from Source
+=================
+
+Use this guide when install scripts are unavailable or you want full manual control.
+
+Prerequisites
+-------------
+- Go installed (1.24+ recommended)
+- Git installed
+- A terminal (macOS/Linux/Windows PowerShell)
+
+Clone and build
+---------------
+1) Clone the repo:
+
+```sh
+git clone https://github.com/suyash-sneo/bucket.git
+cd bucket
+```
+
+2) Run tests:
+
+```sh
+go test ./...
+```
+
+3) Build the app binary:
+
+```sh
+go build -o bucket ./cmd/bucket
+```
+
+On Windows:
+
+```powershell
+go build -o bucket.exe ./cmd/bucket
+```
+
+Run locally
+-----------
+macOS/Linux:
+
+```sh
+./bucket
+```
+
+Windows:
+
+```powershell
+.\bucket.exe
+```
+
+Install manually (optional)
+---------------------------
+macOS/Linux:
+
+```sh
+mkdir -p ~/.local/bin
+cp -f ./bucket ~/.local/bin/bucket
+chmod 0755 ~/.local/bin/bucket
+```
+
+Windows (PowerShell):
+
+```powershell
+$installDir = Join-Path $HOME ".local\bin"
+New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+Copy-Item -Force ".\bucket.exe" (Join-Path $installDir "bucket.exe")
+```
+
+Make sure install directory is on your `PATH`.
+
+Notes
+-----
+- On first run, bucket creates `~/.config/bucket/` and initializes config/log files.
+- If build fails due to module issues, run:
+
+```sh
+go mod tidy
+```
