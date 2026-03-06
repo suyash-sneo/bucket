@@ -607,3 +607,98 @@ func TestHeaderRendersWhenSelectedTaskHasLargeURL(t *testing.T) {
 		t.Fatalf("expected header to render for task with large URL")
 	}
 }
+
+func TestDraftConflictKeepDBDeletesDraftAndExitsModal(t *testing.T) {
+	draftsDir := t.TempDir()
+	draft := TaskDraft{
+		TaskID:        7,
+		BaseUpdatedAt: 1,
+		SavedAt:       time.Now().UTC().Unix(),
+		Fields: TaskDraftFields{
+			Title: "conflicted",
+		},
+	}
+	path, err := WriteDraftFile(draftsDir, draft)
+	if err != nil {
+		t.Fatalf("write draft: %v", err)
+	}
+
+	m := NewModel(ModelOptions{
+		Service:   &fakeService{},
+		Theme:     uitheme.Dark(),
+		ListType:  domain.ListInbox,
+		DraftsDir: draftsDir,
+		ConflictDrafts: []DraftConflict{
+			{TaskID: draft.TaskID, Path: path, Draft: draft},
+		},
+		Now: time.Now,
+	})
+	if m.mode != ModeDraftConflicts {
+		t.Fatalf("expected draft conflicts mode, got %v", m.mode)
+	}
+
+	_, cmd := m.Update(keyRunes('d'))
+	if cmd == nil {
+		t.Fatalf("expected resolve command")
+	}
+	_, _ = m.Update(cmd())
+	if m.mode != ModeList {
+		t.Fatalf("expected mode list after resolve, got %v", m.mode)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected draft deleted, stat err=%v", err)
+	}
+}
+
+func TestDraftConflictApplyDraftOverwritesDBAndDeletesDraft(t *testing.T) {
+	draftsDir := t.TempDir()
+	now := time.Now().UTC()
+	svc := &fakeService{
+		getTask: domain.Task{
+			ID:        9,
+			Title:     "db title",
+			Status:    domain.StatusCreated,
+			CreatedAt: now,
+			UpdatedAt: now,
+			Meta:      map[string]any{},
+		},
+	}
+	draft := TaskDraft{
+		TaskID:        9,
+		BaseUpdatedAt: now.Unix() - 5,
+		SavedAt:       now.Unix(),
+		Fields: TaskDraftFields{
+			Title: "draft title",
+		},
+	}
+	path, err := WriteDraftFile(draftsDir, draft)
+	if err != nil {
+		t.Fatalf("write draft: %v", err)
+	}
+
+	m := NewModel(ModelOptions{
+		Service:   svc,
+		Theme:     uitheme.Dark(),
+		ListType:  domain.ListInbox,
+		DraftsDir: draftsDir,
+		ConflictDrafts: []DraftConflict{
+			{TaskID: draft.TaskID, Path: path, Draft: draft},
+		},
+		Now: time.Now,
+	})
+
+	_, cmd := m.Update(keyRunes('a'))
+	if cmd == nil {
+		t.Fatalf("expected resolve command")
+	}
+	_, _ = m.Update(cmd())
+	if svc.updateCalls != 1 {
+		t.Fatalf("expected one update call, got %d", svc.updateCalls)
+	}
+	if svc.lastUpdatedTask.Title != "draft title" {
+		t.Fatalf("expected draft title applied, got %q", svc.lastUpdatedTask.Title)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected draft deleted, stat err=%v", err)
+	}
+}

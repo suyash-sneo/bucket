@@ -123,32 +123,32 @@ func Run(version string) error {
 	return nil
 }
 
-func recoverDrafts(taskService *service.TaskService, draftsDir string, logger *slog.Logger) ([]string, error) {
+func recoverDrafts(taskService *service.TaskService, draftsDir string, logger *slog.Logger) ([]ui.DraftConflict, error) {
 	drafts, _, err := ui.LoadDraftFiles(draftsDir)
 	if err != nil {
 		return nil, err
 	}
-	conflicts := make([]string, 0)
+	conflicts := make([]ui.DraftConflict, 0)
 	for _, draft := range drafts {
 		task, _, err := taskService.GetDetails(draft.TaskID)
 		path := ui.DraftFilePath(draftsDir, draft.TaskID)
 		if err != nil {
-			conflicts = append(conflicts, path)
+			conflicts = append(conflicts, ui.DraftConflict{TaskID: draft.TaskID, Path: path, Draft: draft})
 			continue
 		}
 		if task.UpdatedAt.Unix() != draft.BaseUpdatedAt {
-			conflicts = append(conflicts, path)
+			conflicts = append(conflicts, ui.DraftConflict{TaskID: draft.TaskID, Path: path, Draft: draft})
 			continue
 		}
 		patched, err := ui.ApplyDraftToTask(task, draft)
 		if err != nil {
 			logger.Error("failed to apply draft", "task_id", draft.TaskID, "error", err)
-			conflicts = append(conflicts, path)
+			conflicts = append(conflicts, ui.DraftConflict{TaskID: draft.TaskID, Path: path, Draft: draft})
 			continue
 		}
 		if _, err := taskService.UpdateTask(task.UpdatedAt, patched); err != nil {
 			logger.Error("failed to persist recovered draft", "task_id", draft.TaskID, "error", err)
-			conflicts = append(conflicts, path)
+			conflicts = append(conflicts, ui.DraftConflict{TaskID: draft.TaskID, Path: path, Draft: draft})
 			continue
 		}
 		if err := ui.DeleteDraftFile(draftsDir, draft.TaskID); err != nil {

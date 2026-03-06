@@ -1,0 +1,195 @@
+Bucket Conflict Management
+==========================
+
+Purpose
+-------
+This document explains how bucket protects in-progress edits using draft files, how writes are flushed to SQLite, where race conditions can occur, and how conflicts are resolved automatically or manually.
+
+The design goal is: never silently lose user edits.
+
+
+1) Core Data and Version Tracking
+---------------------------------
+Data is tracked in two places:
+
+1. SQLite database (source of truth for committed state)
+   - Task row in `tasks` table
+   - Optimistic concurrency token: `updated_at` (UTC Unix seconds)
+   - Every successful update writes a new `updated_at`
+
+2. Draft files (crash-safe uncommitted state)
+   - Directory: `~/.config/bucket/drafts/`
+   - File name: `task-<id>.json`
+   - Contains:
+     - `task_id`
+     - `base_updated_at` (task version the edit started from)
+     - `saved_at`
+     - draft field values (title/status/url/notes/due/priority/estimate/progress)
+     - `meta`
+
+
+2) Runtime Write Flow (Edit/Notes Modes)
+----------------------------------------
+When a task is loaded into edit state:
+- `baseUpdatedAt` is set from DB task `updated_at`.
+- User edits update in-memory form state and mark task `dirty`.
+
+Autosave ticker:
+- Runs every 1 second while in Edit or Notes mode.
+- If `dirty` and no save in-flight:
+  1) write/update draft file first
+  2) start async DB save with optimistic concurrency (`WHERE id=? AND updated_at=?`)
+
+On save success:
+- `dirty=false`
+- `baseUpdatedAt` replaced with returned task `updated_at`
+- draft file deleted
+
+On save failure:
+- `dirty=true`
+- draft file kept
+- toast shown
+- if conflict error, conflict UI is shown for immediate resolution
+
+Other save triggers:
+- Field focus moves (`Tab`, `Shift+Tab`, quick focus keys) trigger immediate save attempt.
+- Exiting Edit/Notes (`Esc`/back) writes draft and attempts a short flush.
+- Quit (`q`, `ctrl+q`, `ctrl+c`) attempts flush; if still dirty, draft remains.
+
+
+3) Startup Recovery Flow
+------------------------
+At startup, draft recovery scans `~/.config/bucket/drafts/`.
+
+For each draft:
+1) Load current DB task
+2) Compare `task.updated_at` vs draft `base_updated_at`
+
+If equal:
+- Draft is considered based on current DB version
+- Draft patch is applied to task
+- Task is updated transactionally through normal service/repo path
+- Draft file is deleted
+
+If different:
+- Draft is considered conflicting
+- Draft file is kept
+- Conflict is pushed to UI resolver list
+
+This means matching drafts are auto-recovered without prompting, and only true version mismatches are surfaced.
+
+
+4) Why Conflicts Happen (including single-instance)
+---------------------------------------------------
+Conflicts are not only multi-instance events. They can also happen from local timing races:
+
+A) Autosave vs quit flush overlap
+- Autosave starts async save.
+- User quits immediately.
+- Quit path starts another save attempt or times out.
+- One save can win and the other can conflict, leaving a draft.
+
+B) Quit flush timeout
+- Quit flush uses short timeout (300ms).
+- If DB save completes after timeout, DB moves forward but draft may already be written with stale base version.
+- Next startup sees mismatch and flags conflict.
+
+C) Edit/notes exit timing
+- Exit writes draft first, then flushes.
+- If flush fails/conflicts/times out, draft remains and may conflict later.
+
+D) DB contention/latency
+- Single-connection DB mode serializes writes.
+- In-flight save can delay flush path enough to hit timeout.
+
+E) Invalid form state at save time
+- If in-memory field parsing fails (example: invalid due/number), save cannot be committed.
+- Draft remains by design for manual recovery.
+
+F) External data changes
+- Any process/script touching the same DB task can change `updated_at`.
+- Draft base version no longer matches current DB task.
+
+
+5) Automatic Resolution Rules
+-----------------------------
+Automatic resolution happens only when safe:
+
+- Rule: apply automatically only if `db.updated_at == draft.base_updated_at`.
+- Effect: no ambiguity; draft is merged over exactly the version it was created from.
+- Cleanup: draft file deleted after successful DB write.
+
+If this rule is not met, no automatic overwrite is done.
+
+
+6) Manual Resolution UI (current behavior)
+------------------------------------------
+When conflicts exist at startup (or an in-session save conflict occurs), bucket enters Draft Conflict mode.
+
+Per conflict, user options:
+- `a` = Accept draft
+  - Load current DB task
+  - Apply draft fields
+  - Save to DB using optimistic concurrency from current DB row
+  - Delete draft file
+
+- `d` = Keep DB version
+  - Do not modify DB
+  - Delete draft file
+
+- `j`/`k` (or arrows) = move between conflicts
+- `Esc` = skip for now (leave remaining draft files untouched)
+
+After all conflicts are resolved (`a` or `d`):
+- Conflict mode exits
+- list reloads
+- resolved draft files do not reappear on next launch
+
+
+7) File and DB Tracking Summary
+-------------------------------
+Tracked in files:
+- `~/.config/bucket/drafts/task-<id>.json`
+- one file per task with pending/ambiguous edits
+
+Tracked in DB:
+- `tasks.updated_at` is the optimistic concurrency token
+- update statement includes `WHERE id=? AND updated_at=?`
+
+Conflict detection source:
+- startup check: compare draft `base_updated_at` with DB `updated_at`
+- runtime check: DB update affected rows = 0 -> conflict
+
+
+8) Worst-Case Manual Recovery Procedure
+---------------------------------------
+If UI resolution is interrupted or you want explicit control:
+
+1) Open `~/.config/bucket/drafts/` and identify `task-<id>.json`.
+2) Decide authoritative source:
+   - Keep draft: open task in app and choose `a`
+   - Keep DB: open task in app and choose `d`
+3) If app cannot start conflict UI:
+   - Backup the draft file
+   - Either delete it (keep DB) or manually copy fields into task after app starts
+4) Relaunch bucket; unresolved drafts should no longer reappear once files are removed.
+
+
+9) Logging and Troubleshooting
+------------------------------
+Primary log file:
+- `~/.config/bucket/log.txt`
+
+Useful checks:
+- Search for autosave failures and conflict events.
+- Verify whether draft files still exist after choosing `a` or `d`.
+- If conflicts repeat for same task, inspect frequent quit timing and invalid field inputs.
+
+
+10) Known Design Tradeoffs
+--------------------------
+- Conflict safety is prioritized over silent overwrite.
+- Short quit flush timeout favors fast exit but can leave a draft.
+- `updated_at` uses Unix seconds; very fast back-to-back writes can compress version granularity.
+
+These tradeoffs are acceptable for safety, but they are the main reason conflict files can appear even with one active UI instance.

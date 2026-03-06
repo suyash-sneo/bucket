@@ -113,7 +113,7 @@ func TestRecoverDraftsKeepsConflictingDraft(t *testing.T) {
 	if err != nil {
 		t.Fatalf("recover drafts: %v", err)
 	}
-	if len(conflicts) != 1 || conflicts[0] != path {
+	if len(conflicts) != 1 || conflicts[0].Path != path || conflicts[0].TaskID != task.ID {
 		t.Fatalf("expected conflict path %s, got %v", path, conflicts)
 	}
 	if _, err := os.Stat(path); err != nil {

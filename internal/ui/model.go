@@ -54,6 +54,7 @@ const (
 	ModeNotesEdit
 	ModeSubtasks
 	ModeModalError
+	ModeDraftConflicts
 	ModeConfirmDelete
 )
 
@@ -88,7 +89,7 @@ type ModelOptions struct {
 	Theme          uitheme.Theme
 	ListType       string
 	DraftsDir      string
-	ConflictDrafts []string
+	ConflictDrafts []DraftConflict
 	Now            func() time.Time
 	Logger         *slog.Logger
 }
@@ -131,7 +132,9 @@ type Model struct {
 	keys  KeyMap
 	theme uitheme.Theme
 
-	errModal modalState
+	errModal        modalState
+	draftConflicts  []DraftConflict
+	draftConflictIx int
 
 	pending requestState
 
@@ -180,6 +183,13 @@ type requestState struct {
 	statusID    int
 	quickAddID  int
 	subtaskOpID int
+	draftOpID   int
+}
+
+type DraftConflict struct {
+	TaskID int64
+	Path   string
+	Draft  TaskDraft
 }
 
 func NewModel(options ModelOptions) *Model {
@@ -273,12 +283,9 @@ func NewModel(options ModelOptions) *Model {
 		debugKeys:    debugKeys,
 	}
 	if len(options.ConflictDrafts) > 0 {
-		model.mode = ModeModalError
-		model.errModal = modalState{
-			Title: "Draft conflicts detected",
-			Body:  strings.Join(options.ConflictDrafts, "\n"),
-			Fatal: false,
-		}
+		model.mode = ModeDraftConflicts
+		model.draftConflicts = make([]DraftConflict, len(options.ConflictDrafts))
+		copy(model.draftConflicts, options.ConflictDrafts)
 	}
 	return model
 }
@@ -344,6 +351,13 @@ type toastClearMsg struct {
 
 type urlOpenResultMsg struct {
 	err error
+}
+
+type draftConflictResolvedMsg struct {
+	requestID int
+	taskID    int64
+	action    string
+	err       error
 }
 
 func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
@@ -452,15 +466,18 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		if typed.err != nil {
 			model.lastSaveErr = typed.err
 			model.dirty = true
-			_, _ = model.writeDraftNow()
+			path, _ := model.writeDraftNow()
+			if path == "" && model.editDraft.ID != 0 {
+				path = DraftFilePath(model.draftsDir, model.editDraft.ID)
+			}
 			if service.IsConflict(typed.err) {
-				path := DraftFilePath(model.draftsDir, model.editDraft.ID)
-				model.mode = ModeModalError
-				model.errModal = modalState{
-					Title: "Conflict detected",
-					Body:  "Your edits were saved to draft:\n" + path,
-					Fatal: false,
-				}
+				model.mode = ModeDraftConflicts
+				model.draftConflictIx = 0
+				model.draftConflicts = []DraftConflict{{
+					TaskID: model.editDraft.ID,
+					Path:   path,
+					Draft:  model.currentTaskDraft(),
+				}}
 			}
 			return model, model.setToast("Autosave failed")
 		}
@@ -507,6 +524,30 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return model, model.setToast(typed.err.Error())
 		}
 		return model, nil
+	case draftConflictResolvedMsg:
+		if typed.requestID != model.pending.draftOpID {
+			return model, nil
+		}
+		if typed.err != nil {
+			return model, model.setToast("Conflict resolution failed")
+		}
+		model.removeDraftConflict(typed.taskID)
+		if len(model.draftConflicts) == 0 {
+			model.mode = ModeList
+			model.draftConflictIx = 0
+			return model, tea.Batch(model.setToast("Conflict resolved"), model.reloadListCmd())
+		}
+		if model.draftConflictIx >= len(model.draftConflicts) {
+			model.draftConflictIx = len(model.draftConflicts) - 1
+		}
+		switch typed.action {
+		case "apply_draft":
+			return model, model.setToast("Applied draft and removed file")
+		case "keep_db":
+			return model, model.setToast("Kept DB version and removed draft")
+		default:
+			return model, nil
+		}
 	case tea.KeyMsg:
 		model.logKey("received", typed)
 		if model.mode == ModeModalError {
@@ -519,6 +560,9 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 				model.errModal = modalState{}
 			}
 			return model, nil
+		}
+		if model.mode == ModeDraftConflicts {
+			return model, model.updateDraftConflictsMode(typed)
 		}
 
 		if key.Matches(typed, model.keys.Quit, model.keys.QuitSIG) {
@@ -583,6 +627,8 @@ func modeString(mode Mode) string {
 		return "subtasks"
 	case ModeModalError:
 		return "modal_error"
+	case ModeDraftConflicts:
+		return "draft_conflicts"
 	case ModeConfirmDelete:
 		return "confirm_delete"
 	default:
@@ -1015,6 +1061,39 @@ func (model *Model) updateConfirmDeleteMode(message tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
+func (model *Model) updateDraftConflictsMode(message tea.KeyMsg) tea.Cmd {
+	if len(model.draftConflicts) == 0 {
+		model.mode = ModeList
+		return nil
+	}
+	switch {
+	case key.Matches(message, model.keys.Cancel):
+		model.mode = ModeList
+		return nil
+	case message.String() == "j" || message.Type == tea.KeyDown:
+		model.draftConflictIx = (model.draftConflictIx + 1) % len(model.draftConflicts)
+		return nil
+	case message.String() == "k" || message.Type == tea.KeyUp:
+		model.draftConflictIx = (model.draftConflictIx - 1 + len(model.draftConflicts)) % len(model.draftConflicts)
+		return nil
+	case message.String() == "a":
+		conflict := model.currentDraftConflict()
+		if conflict == nil {
+			return nil
+		}
+		requestID := model.nextRequestID(&model.pending.draftOpID)
+		return resolveDraftConflictCmd(model.service, requestID, model.draftsDir, *conflict, true)
+	case message.String() == "d":
+		conflict := model.currentDraftConflict()
+		if conflict == nil {
+			return nil
+		}
+		requestID := model.nextRequestID(&model.pending.draftOpID)
+		return resolveDraftConflictCmd(model.service, requestID, model.draftsDir, *conflict, false)
+	}
+	return nil
+}
+
 func (model *Model) View() string {
 	if model.windowWidth == 0 || model.windowHeight == 0 {
 		return "loading..."
@@ -1056,6 +1135,9 @@ func (model *Model) View() string {
 	view := strings.Join(parts, "\n")
 	if model.mode == ModeModalError {
 		view = components.RenderModal(model.theme, model.windowWidth, model.windowHeight, model.errModal.Title, model.errModal.Body)
+	}
+	if model.mode == ModeDraftConflicts {
+		view = components.RenderModal(model.theme, model.windowWidth, model.windowHeight, "Draft conflict detected", model.renderDraftConflictBody())
 	}
 	if model.mode == ModeConfirmDelete {
 		view = components.RenderModal(model.theme, model.windowWidth, model.windowHeight, "Delete subtask?", "Press y to confirm, Esc to cancel")
@@ -1239,6 +1321,28 @@ func (model *Model) helpText() string {
 	}
 }
 
+func (model *Model) renderDraftConflictBody() string {
+	current := model.currentDraftConflict()
+	if current == nil {
+		return "No draft conflicts."
+	}
+	savedAt := "unknown"
+	if current.Draft.SavedAt > 0 {
+		savedAt = time.Unix(current.Draft.SavedAt, 0).In(time.Local).Format("2006-01-02 15:04:05")
+	}
+	return strings.Join([]string{
+		fmt.Sprintf("Conflict %d/%d", model.draftConflictIx+1, len(model.draftConflicts)),
+		fmt.Sprintf("Task ID: %d", current.TaskID),
+		fmt.Sprintf("Draft: %s", current.Path),
+		fmt.Sprintf("Draft saved at: %s", savedAt),
+		"",
+		"a  accept draft → overwrite DB + delete draft",
+		"d  keep DB version + delete draft",
+		"j/k next/prev conflict",
+		"Esc skip for now",
+	}, "\n")
+}
+
 func (model *Model) rightPaneWidth() int {
 	if model.windowWidth < 80 || model.windowHeight < 18 {
 		return model.windowWidth
@@ -1303,6 +1407,33 @@ func saveTaskCmd(svc Service, requestID int, baseUpdatedAt time.Time, task domai
 	return func() tea.Msg {
 		updated, err := svc.UpdateTask(baseUpdatedAt, task)
 		return saveResultMsg{requestID: requestID, task: updated, err: err}
+	}
+}
+
+func resolveDraftConflictCmd(svc Service, requestID int, draftsDir string, conflict DraftConflict, applyDraft bool) tea.Cmd {
+	return func() tea.Msg {
+		if applyDraft {
+			task, _, err := svc.GetDetails(conflict.TaskID)
+			if err != nil {
+				return draftConflictResolvedMsg{requestID: requestID, taskID: conflict.TaskID, action: "apply_draft", err: err}
+			}
+			patched, err := ApplyDraftToTask(task, conflict.Draft)
+			if err != nil {
+				return draftConflictResolvedMsg{requestID: requestID, taskID: conflict.TaskID, action: "apply_draft", err: err}
+			}
+			if _, err := svc.UpdateTask(task.UpdatedAt, patched); err != nil {
+				return draftConflictResolvedMsg{requestID: requestID, taskID: conflict.TaskID, action: "apply_draft", err: err}
+			}
+			if err := DeleteDraftFile(draftsDir, conflict.TaskID); err != nil {
+				return draftConflictResolvedMsg{requestID: requestID, taskID: conflict.TaskID, action: "apply_draft", err: err}
+			}
+			return draftConflictResolvedMsg{requestID: requestID, taskID: conflict.TaskID, action: "apply_draft"}
+		}
+
+		if err := DeleteDraftFile(draftsDir, conflict.TaskID); err != nil {
+			return draftConflictResolvedMsg{requestID: requestID, taskID: conflict.TaskID, action: "keep_db", err: err}
+		}
+		return draftConflictResolvedMsg{requestID: requestID, taskID: conflict.TaskID, action: "keep_db"}
 	}
 }
 
@@ -1390,6 +1521,28 @@ func (model *Model) selectTaskByID(taskID int64) {
 		if model.tasks[taskIndex].ID == taskID {
 			model.selectedIndex = visibleIndex
 			model.selectedTaskID = taskID
+			return
+		}
+	}
+}
+
+func (model *Model) currentDraftConflict() *DraftConflict {
+	if len(model.draftConflicts) == 0 {
+		return nil
+	}
+	if model.draftConflictIx < 0 {
+		model.draftConflictIx = 0
+	}
+	if model.draftConflictIx >= len(model.draftConflicts) {
+		model.draftConflictIx = len(model.draftConflicts) - 1
+	}
+	return &model.draftConflicts[model.draftConflictIx]
+}
+
+func (model *Model) removeDraftConflict(taskID int64) {
+	for index := range model.draftConflicts {
+		if model.draftConflicts[index].TaskID == taskID {
+			model.draftConflicts = append(model.draftConflicts[:index], model.draftConflicts[index+1:]...)
 			return
 		}
 	}
@@ -1984,11 +2137,8 @@ func DraftFilePath(draftsDir string, taskID int64) string {
 	return filepath.Join(draftsDir, fmt.Sprintf("task-%d.json", taskID))
 }
 
-func (model *Model) writeDraftNow() (string, error) {
-	if model.editDraft.ID == 0 {
-		return "", nil
-	}
-	draft := TaskDraft{
+func (model *Model) currentTaskDraft() TaskDraft {
+	return TaskDraft{
 		TaskID:        model.editDraft.ID,
 		BaseUpdatedAt: model.baseUpdatedAt.UTC().Unix(),
 		SavedAt:       model.now().UTC().Unix(),
@@ -2004,6 +2154,13 @@ func (model *Model) writeDraftNow() (string, error) {
 		},
 		Meta: model.editDraft.Meta,
 	}
+}
+
+func (model *Model) writeDraftNow() (string, error) {
+	if model.editDraft.ID == 0 {
+		return "", nil
+	}
+	draft := model.currentTaskDraft()
 	return WriteDraftFile(model.draftsDir, draft)
 }
 
