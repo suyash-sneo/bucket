@@ -31,10 +31,11 @@ func RenderEditorForm(palette theme.Theme, width, height int, focused string, va
 	lines := make([]string, 0, len(rows))
 	for _, row := range rows {
 		line := fmt.Sprintf("%-10s %s", row.Label+":", row.Value)
+		lineStyle := lipgloss.NewStyle().Width(width).MaxWidth(width)
 		if row.Key == focused {
-			line = lipgloss.NewStyle().Foreground(palette.SelectionFG).Background(palette.SelectionBG).Render(line)
+			lineStyle = lineStyle.Foreground(palette.SelectionFG).Background(palette.SelectionBG)
 		}
-		lines = append(lines, line)
+		lines = append(lines, lineStyle.Render(line))
 	}
 	if len(lines) > height {
 		lines = lines[:height]
@@ -42,5 +43,5 @@ func RenderEditorForm(palette theme.Theme, width, height int, focused string, va
 	for len(lines) < height {
 		lines = append(lines, "")
 	}
-	return lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
+	return strings.Join(lines, "\n")
 }

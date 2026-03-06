@@ -363,6 +363,7 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		model.viewport.Height = maxInt(1, model.contentHeight())
 		model.notesEditor.SetWidth(maxInt(20, model.rightPaneWidth()-1))
 		model.notesEditor.SetHeight(maxInt(5, model.contentHeight()))
+		model.updateFormInputWidths(model.rightPaneWidth())
 		return model, nil
 	case listLoadedMsg:
 		if typed.requestID != model.pending.listID {
@@ -1151,6 +1152,7 @@ func (model *Model) renderRightPane(width, height int) string {
 }
 
 func (model *Model) renderEditPane(width, height int) string {
+	model.updateFormInputWidths(width)
 	urlValue := model.renderURLFieldValue(width)
 	values := map[string]string{
 		"title":    model.renderInputFieldValue(FieldTitle, model.form.title, false),
@@ -1487,6 +1489,12 @@ func (model *Model) syncFormWithTask(task domain.Task) {
 	} else {
 		model.form.progress.SetValue(strconv.Itoa(*task.Progress))
 	}
+	model.form.title.CursorEnd()
+	model.form.url.CursorEnd()
+	model.form.due.CursorEnd()
+	model.form.priority.CursorEnd()
+	model.form.estimate.CursorEnd()
+	model.form.progress.CursorEnd()
 	model.notesEditor.SetValue(task.Notes)
 	model.dirty = false
 }
@@ -1496,16 +1504,22 @@ func (model *Model) focusField() {
 	switch model.form.focused {
 	case FieldTitle:
 		model.form.title.Focus()
+		model.form.title.CursorEnd()
 	case FieldURL:
 		model.form.url.Focus()
+		model.form.url.CursorEnd()
 	case FieldDue:
 		model.form.due.Focus()
+		model.form.due.CursorEnd()
 	case FieldPriority:
 		model.form.priority.Focus()
+		model.form.priority.CursorEnd()
 	case FieldEstimate:
 		model.form.estimate.Focus()
+		model.form.estimate.CursorEnd()
 	case FieldProgress:
 		model.form.progress.Focus()
+		model.form.progress.CursorEnd()
 	}
 }
 
@@ -1588,13 +1602,29 @@ func (model *Model) matchesClearURL(message tea.KeyMsg) bool {
 func (model *Model) renderURLFieldValue(width int) string {
 	const clearHint = " (ctrl+k clear)"
 	if model.form.focused == FieldURL {
-		return model.form.url.View() + clearHint
+		return model.form.url.View()
 	}
-	available := width - len("URL: ") - len(clearHint)
-	if available < 10 {
-		available = 10
+	available := model.form.url.Width - len(clearHint)
+	if available < 6 {
+		available = 6
 	}
 	return components.CompactURL(model.form.url.Value(), available) + clearHint
+}
+
+func (model *Model) updateFormInputWidths(paneWidth int) {
+	if paneWidth <= 0 {
+		return
+	}
+	valueWidth := paneWidth - 12
+	if valueWidth < 8 {
+		valueWidth = 8
+	}
+	model.form.title.Width = valueWidth
+	model.form.url.Width = valueWidth
+	model.form.due.Width = valueWidth
+	model.form.priority.Width = valueWidth
+	model.form.estimate.Width = valueWidth
+	model.form.progress.Width = valueWidth
 }
 
 func (model *Model) renderInputFieldValue(field FieldFocus, input textinput.Model, showNone bool) string {

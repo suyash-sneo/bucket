@@ -323,6 +323,53 @@ func TestLeftArrowMovesCaretInTextField(t *testing.T) {
 	}
 }
 
+func TestFocusFieldMovesCursorToEnd(t *testing.T) {
+	m := newTestModel(t, &fakeService{})
+	m.mode = ModeEdit
+	m.form.focused = FieldTitle
+	m.form.title.SetValue("abcdef")
+	m.focusField()
+	_, _ = m.Update(keyLeft())
+	if got := m.form.title.Position(); got != len("abcde") {
+		t.Fatalf("expected caret moved left before refocus, got %d", got)
+	}
+
+	m.focusField()
+	if got := m.form.title.Position(); got != len("abcdef") {
+		t.Fatalf("expected caret at end after focus, got %d", got)
+	}
+}
+
+func TestFocusedURLFieldDoesNotAppendClearHint(t *testing.T) {
+	m := newTestModel(t, &fakeService{})
+	m.mode = ModeEdit
+	m.form.focused = FieldURL
+	m.focusField()
+	m.form.url.SetValue("https://example.com/" + strings.Repeat("path", 200))
+
+	value := m.renderURLFieldValue(80)
+	if strings.Contains(value, "ctrl+k clear") {
+		t.Fatalf("expected no clear hint in focused URL view")
+	}
+}
+
+func TestUnfocusedURLFieldCompactsAndKeepsClearHint(t *testing.T) {
+	m := newTestModel(t, &fakeService{})
+	m.mode = ModeEdit
+	m.form.focused = FieldTitle
+	m.focusField()
+	m.updateFormInputWidths(60)
+	m.form.url.SetValue("https://example.com/" + strings.Repeat("very-long-path-segment/", 20))
+
+	value := m.renderURLFieldValue(60)
+	if !strings.HasSuffix(value, " (ctrl+k clear)") {
+		t.Fatalf("expected clear hint suffix, got %q", value)
+	}
+	if len(value) > m.form.url.Width {
+		t.Fatalf("expected compacted URL to fit value width, got len=%d width=%d", len(value), m.form.url.Width)
+	}
+}
+
 func TestCtrlQTriggersQuit(t *testing.T) {
 	m := newTestModel(t, &fakeService{})
 	_, cmd := m.Update(keyCtrlQ())
