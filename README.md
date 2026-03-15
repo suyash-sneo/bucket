@@ -1,68 +1,28 @@
 # bucket
 
-`bucket` is a simple, fast, in-terminal task manager.
+> A keyboard-first terminal task manager for people who get interrupted all day.
 
-It is built to reduce cognitive load during busy work: capture ad-hoc requests quickly into a bucket, keep moving, and return to focused execution. The app is keyboard-first and TUI-native by design.
+`bucket` helps you get tasks out of your head fast. Capture requests as they arrive, keep moving, and come back later to process them from a fast two-pane TUI without reaching for the mouse.
 
-## Features
+## Why bucket
 
-- Keyboard-first two-pane TUI (list + details/edit)
-- Very fast task capture (`a` for title-only quick add)
-- SQLite local persistence
-- Notes editor with autosave
-- URL open, filtering, and status cycling workflows
-- Draft and conflict recovery protections
-- Dark/light theme support
+- Quick capture: press `a`, type a title, press `Enter`
+- Keyboard-only workflow: list navigation, task editing, filtering, status updates
+- Local-first storage with SQLite under `~/.config/bucket/`
+- Safer editing with autosaved drafts and conflict recovery
+- Practical task detail fields: notes, subtasks, URLs, due date, priority, estimate, progress
 
-## Install (macOS)
-
-### Latest release
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/master/scripts/install.sh | sh
-```
-
-### Specific version
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/master/scripts/install.sh | BUCKET_VERSION=v0.0.1 sh
-```
-
-## Uninstall (macOS)
-
-### Remove binary + data
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/master/scripts/uninstall.sh | sh
-```
-
-### Remove binary, keep data
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/master/scripts/uninstall.sh | BUCKET_KEEP_DATA=1 sh
-```
-
-## Data & Config
-
-Bucket stores local state in `~/.config/bucket/`:
-
-- Config: `~/.config/bucket/config.yml`
-- Logs: `~/.config/bucket/log.txt` (capped; default 10MB)
-- Database: `~/.config/bucket/bucket.db` (default)
-- Drafts: `~/.config/bucket/drafts/`
-- Migration backups: `~/.config/bucket/backups/`
-
-## How to Use
-
-### Core flow
+## Core flow
 
 1. Run `bucket`
-2. Press `a`, type title, press `Enter`
-3. Press `Enter` (or `l`) to edit details
-4. Use `ctrl+t/u/s/d/p/e/r/b/n` to jump fields
-5. Press `Esc` or `ctrl+h` to go back to list
+2. Press `a`, type a title, press `Enter`
+3. Press `Enter` or `l` to open details
+4. Use `Tab` or `ctrl+t/u/s/d/p/e/r/b/n` to move across fields
+5. Press `Esc` or `ctrl+h` to return to the list
 
-### Main list keys
+## Keyboard highlights
+
+### Main list
 
 - `j` / `k` or `↓` / `↑`: move
 - `Space`: cycle status
@@ -71,29 +31,70 @@ Bucket stores local state in `~/.config/bucket/`:
 - `I / U / A / C / @`: switch list view
 - `q` / `ctrl+q` / `ctrl+c`: quit
 
-### Edit keys
+### Edit view
 
 - `Tab` / `Shift+Tab`: next/previous field
 - `ctrl+space` (or `ctrl+@`): cycle status
 - `ctrl+o`: open URL
-- `ctrl+k`: clear URL (when URL field is focused)
+- `ctrl+k`: clear URL when the URL field is focused
+
+## Install
+
+### macOS release
+
+Install the latest release:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/master/scripts/install.sh | sh
+```
+
+Install a specific version:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/master/scripts/install.sh | BUCKET_VERSION=v0.0.1 sh
+```
+
+### Build from source
+
+For macOS, Linux, and Windows source builds, see [docs/build-source.txt](docs/build-source.txt).
+
+## Uninstall (macOS)
+
+Remove binary and data:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/master/scripts/uninstall.sh | sh
+```
+
+Remove the binary but keep local data:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/suyash-sneo/bucket/master/scripts/uninstall.sh | BUCKET_KEEP_DATA=1 sh
+```
+
+## Data and config
+
+Bucket stores local state in `~/.config/bucket/`:
+
+- Config: `~/.config/bucket/config.yml`
+- Logs: `~/.config/bucket/log.txt` (capped; default 10 MB)
+- Database: `~/.config/bucket/bucket.db`
+- Drafts: `~/.config/bucket/drafts/`
+- Migration backups: `~/.config/bucket/backups/`
 
 ## Documentation
 
-- Config guide: `docs/config.txt`
-- Conflict/draft design: `docs/conflict-management.txt`
-- Build from source guide: `docs/build-source.txt`
-- Full implementation spec: `Implementation.md`
-- Contributing guide: `CONTRIBUTING.md`
+- [Build from source](docs/build-source.txt)
+- [Configuration](docs/config.txt)
+- [Draft and conflict handling](docs/conflict-management.txt)
+- [Contributing](CONTRIBUTING.md)
 
 ## Contributing
 
-See `CONTRIBUTING.md` for contribution workflow.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution workflow.
 
 Help wanted: Linux and Windows build validation, runtime testing, and issue reports from real environments.
 
 ## License
 
-This project is licensed under the MIT License. You are free to use, modify, and fork it.
-
-See `LICENSE`.
+MIT. See [LICENSE](LICENSE).
