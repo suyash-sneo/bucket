@@ -4,6 +4,8 @@
 
 `bucket` helps you get tasks out of your head fast. Capture requests as they arrive, keep moving, and come back later to process them from a fast two-pane TUI without reaching for the mouse.
 
+![bucket demo](media/bucket-demo.gif)
+
 ## Why bucket
 
 - Quick capture: press `a`, type a title, press `Enter`
